@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import google.generativeai as genai
 from datetime import datetime, timedelta
+from configparser import ConfigParser
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
@@ -42,7 +43,10 @@ with app.app_context():
     db.create_all()
 
 # ============ Gemini API 初始化 ============
-genai.configure(api_key='AIzaSyBNBn7je9hOrk5ny-TjabghvHCXr6ZXHbQ')
+# Set up config parser
+config = ConfigParser()
+config.read("config.ini")
+genai.configure(api_key=config["Gemini"]["API_KEY"])
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # ============ 路由設計 ============
