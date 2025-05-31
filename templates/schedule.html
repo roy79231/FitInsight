@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行事曆 - FitInsight</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .calendar-cell {
+            border: 1px solid #ddd;
+            height: 60px;
+            overflow: auto;
+            font-size: 0.8rem;
+            padding: 2px;
+            position: relative;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+    <h1 class="text-center">我的行事曆</h1>
+    <div class="text-center mb-4">
+        <button class="btn btn-success" onclick="openAddModal()">新增行程</button>
+    </div>
+    <div class="text-center mb-4">
+        <a href="/" class="btn btn-secondary">返回首頁</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead class="table-primary">
+                <tr>
+                    <th>時間\日期</th>
+                    {% for i in range(-7, 8) %}
+                        <th>{{ (today + timedelta(days=i)).strftime('%m/%d') }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for hour in range(24) %}
+                <tr>
+                    <td class="table-secondary">{{ "%02d:00~%02d:00" % (hour, (hour+1)%24) }}</td>
+                    {% for i in range(-7, 8) %}
+                        {% set d = (today + timedelta(days=i)).strftime('%Y-%m-%d') %}
+                        {% set key = d + '-' + hour|string %}
+                       <td class="calendar-cell"
+                            data-id="{{ schedule_map[key].id if key in schedule_map else '' }}"
+                            data-date="{{ d }}"
+                            data-start="{{ schedule_map[key].start_time if key in schedule_map else hour }}"
+                            data-end="{{ schedule_map[key].end_time if key in schedule_map else hour+1 }}"
+                            data-action="{{ schedule_map[key].action if key in schedule_map else '' }}"
+                            data-remark="{{ schedule_map[key].remark if key in schedule_map else '' }}"
+                            onclick="cellClick(this)">
+                            {% if key in schedule_map %}
+                                <strong>{{ schedule_map[key].action }}</strong><br>{{ schedule_map[key].remark }}
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" tabindex="-1" id="scheduleModal">
+        <div class="modal-dialog">
+            <form method="post" id="modalForm">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">新增/編輯行程</h5>
+                        <button type="button" class="btn-close" onclick="closeModal()"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="schedule_id" id="schedule_id">
+                        <input type="date" name="start_date" id="start_date" class="form-control mb-2" required>
+                        <input type="number" name="start_time" id="start_time" class="form-control mb-2" placeholder="開始時間 (0-23)" required min="0" max="23">
+                        <input type="number" name="end_time" id="end_time" class="form-control mb-2" placeholder="結束時間 (0-23)" required min="0" max="23" oninput="checkTime()">
+                        <input type="text" name="action" id="action" class="form-control mb-2" placeholder="活動名稱" required>
+                        <textarea name="remark" id="remark" class="form-control mb-2" placeholder="備註"></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary" id="saveBtn">儲存</button>
+                        <button type="button" class="btn btn-danger" onclick="deleteSchedule()" id="deleteBtn" style="display:none;">刪除</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function openAddModal() {
+    document.getElementById('modalForm').action = '/add_schedule';
+    document.getElementById('schedule_id').value = '';
+    document.getElementById('start_date').value = '';
+    document.getElementById('start_time').value = '';
+    document.getElementById('end_time').value = '';
+    document.getElementById('action').value = '';
+    document.getElementById('remark').value = '';
+    document.getElementById('deleteBtn').style.display = 'none';
+    document.getElementById('scheduleModal').style.display = 'block';
+}
+
+function cellClick(cell) {
+    var schedule_id = cell.dataset.id;
+    var date = cell.dataset.date;
+    var start = cell.dataset.start;
+    var end = cell.dataset.end;
+    var action = cell.dataset.action;
+    var remark = cell.dataset.remark;
+
+    if (schedule_id) {
+        document.getElementById('modalForm').action = '/edit_schedule/' + schedule_id;
+        document.getElementById('schedule_id').value = schedule_id;
+        document.getElementById('deleteBtn').style.display = 'inline-block';
+    } else {
+        document.getElementById('modalForm').action = '/add_schedule';
+        document.getElementById('schedule_id').value = '';
+        document.getElementById('deleteBtn').style.display = 'none';
+    }
+
+    document.getElementById('start_date').value = date;
+    document.getElementById('start_time').value = start;
+    document.getElementById('end_time').value = end;
+    document.getElementById('action').value = action;
+    document.getElementById('remark').value = remark;
+    document.getElementById('scheduleModal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('scheduleModal').style.display = 'none';
+}
+
+function deleteSchedule() {
+    if (confirm('確定要刪除這個行程嗎？')) {
+        var id = document.getElementById('schedule_id').value;
+        fetch('/delete_schedule/' + id, {method: 'POST'}).then(() => window.location.reload());
+    }
+}
+
+function checkTime() {
+    var start = parseInt(document.getElementById('start_time').value);
+    var end = parseInt(document.getElementById('end_time').value);
+    if (!isNaN(start) && !isNaN(end) && end <= start) {
+        alert("結束時間必須大於開始時間！");
+        document.getElementById('end_time').value = '';
+    }
+}
+</script>
+</body>
+</html>
